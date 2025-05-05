@@ -75,11 +75,18 @@ const Dashboard = () => {
   // Calculate percentage changes
   const calculatePercentageChange = (current: number, previous: number) => {
     if (previous === 0) {
-      return current === 0 ? "0%" : current > 0 ? "N/A" : "N/A";
+      return current > 0 ? "New" : "0.0";
     }
     
-    const percentChange = ((current - previous) / previous) * 100;
-    return `${percentChange.toFixed(1)}%`;
+    const percentChange = ((current - previous) / Math.abs(previous)) * 100;
+    
+    // Handle edge cases like going from negative to positive
+    if (!isFinite(percentChange)) {
+      return "N/A";
+    }
+    
+    // Limit to one decimal place
+    return percentChange.toFixed(1);
   };
 
   // Calculate spending by category
@@ -111,9 +118,55 @@ const Dashboard = () => {
     (b) => b.month === currentMonth + 1 && b.year === currentYear
   );
 
-  // Filter alerts and insights
-  const insights = notifications.filter((n) => n.type === "insight");
-  const alerts = notifications.filter((n) => n.type === "bill" || n.type === "balance" || n.type === "transaction");
+  // Generate AI insights based on actual data
+  const generatedInsights = [
+    {
+      type: "alert",
+      title: "Bill reminders",
+      description: `You have ${bills.filter(b => !b.isPaid).length} bills due in the next 7 days totaling ${formatCurrency(
+        bills
+          .filter(b => !b.isPaid)
+          .filter(b => {
+            const daysUntil = Math.ceil((new Date(b.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            return daysUntil <= 7;
+          })
+          .reduce((sum, bill) => sum + bill.amount, 0)
+      )}.`
+    },
+    {
+      type: "insight",
+      title: "Top spending category",
+      description: topSpendingCategories.length > 0 
+        ? `Your top spending category this month is ${topSpendingCategories[0].name} at ${formatCurrency(topSpendingCategories[0].value)} (${topSpendingCategories[0].percentage} of total expenses).`
+        : "Add transactions to see insights about your top spending categories."
+    },
+    {
+      type: "insight",
+      title: "Savings progress",
+      description: savingsGoals.length > 0
+        ? `You're ${Math.round((savingsGoals[0].currentAmount / savingsGoals[0].targetAmount) * 100)}% toward your ${savingsGoals[0].name} goal.`
+        : "Set up a savings goal to track your progress."
+    }
+  ];
+
+  // Compare current month spending with previous month
+  if (previousMonthExpenses > 0 && monthlyExpenses > previousMonthExpenses) {
+    const increasePercent = ((monthlyExpenses - previousMonthExpenses) / previousMonthExpenses * 100).toFixed(0);
+    generatedInsights.push({
+      type: "alert",
+      title: "Spending increased",
+      description: `Your spending has increased by ${increasePercent}% compared to last month. Consider reviewing your budget.`
+    });
+  }
+
+  // Add budget warning if over budget
+  if (currentBudget && currentBudget.totalSpent > currentBudget.totalAllocated) {
+    generatedInsights.push({
+      type: "alert",
+      title: "Budget warning",
+      description: `You've exceeded your monthly budget by ${formatCurrency(currentBudget.totalSpent - currentBudget.totalAllocated)}.`
+    });
+  }
 
   return (
     <Layout>
@@ -229,26 +282,14 @@ const Dashboard = () => {
             <div className="bg-white rounded-lg border shadow-sm p-6">
               <h2 className="text-lg font-semibold mb-4">AI Insights</h2>
               <div className="space-y-4">
-                <InsightCard
-                  type="alert"
-                  title="Dining spending increased"
-                  description="Your spending on dining out has increased by 30% compared to last month."
-                />
-                <InsightCard
-                  type="insight"
-                  title="Savings opportunity"
-                  description="Based on your spending habits, you could save ₹150 more each month by reducing entertainment expenses."
-                />
-                <InsightCard
-                  type="alert"
-                  title="Bill payment reminder"
-                  description="You have 3 bills due within the next 7 days totaling ₹285."
-                />
-                <InsightCard
-                  type="insight"
-                  title="Expected expense"
-                  description="Based on your history, we expect you'll need to pay for car insurance next month (~₹180)."
-                />
+                {generatedInsights.map((insight, index) => (
+                  <InsightCard
+                    key={index}
+                    type={insight.type === "alert" ? "alert" : "insight"}
+                    title={insight.title}
+                    description={insight.description}
+                  />
+                ))}
               </div>
             </div>
             

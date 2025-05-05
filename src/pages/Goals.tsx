@@ -35,6 +35,13 @@ import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import ProgressBar from "@/components/dashboard/ProgressBar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -45,12 +52,18 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+const fundFormSchema = z.object({
+  accountId: z.string().min(1, "Please select an account"),
+  amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
+});
+
+type FundFormData = z.infer<typeof fundFormSchema>;
+
 const Goals = () => {
-  const { savingsGoals, addSavingsGoal, updateSavingsGoal } = useData();
+  const { savingsGoals, addSavingsGoal, updateSavingsGoal, accounts, fundSavingsGoal } = useData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isFundDialogOpen, setIsFundDialogOpen] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [fundAmount, setFundAmount] = useState<number>(0);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -59,6 +72,14 @@ const Goals = () => {
       targetAmount: 0,
       currentAmount: 0,
       targetDate: undefined,
+    },
+  });
+
+  const fundForm = useForm<FundFormData>({
+    resolver: zodResolver(fundFormSchema),
+    defaultValues: {
+      accountId: "",
+      amount: 0,
     },
   });
 
@@ -77,23 +98,27 @@ const Goals = () => {
     }
   };
 
-  const handleAddFunds = async () => {
-    if (selectedGoalId && fundAmount > 0) {
-      const goal = savingsGoals.find((g) => g.id === selectedGoalId);
-      if (goal) {
-        const newAmount = goal.currentAmount + fundAmount;
-        await updateSavingsGoal(selectedGoalId, {
-          currentAmount: newAmount,
-        });
-        setFundAmount(0);
-        setSelectedGoalId(null);
+  const handleAddFunds = async (data: FundFormData) => {
+    if (selectedGoalId) {
+      const success = await fundSavingsGoal(selectedGoalId, data.accountId, data.amount);
+      
+      if (success) {
+        fundForm.reset();
         setIsFundDialogOpen(false);
+        setSelectedGoalId(null);
       }
     }
   };
 
   const openFundDialog = (goalId: string) => {
     setSelectedGoalId(goalId);
+    
+    // Reset form and set default account if available
+    fundForm.reset({
+      accountId: accounts.length > 0 ? accounts[0].id : "",
+      amount: 0,
+    });
+    
     setIsFundDialogOpen(true);
   };
 
@@ -329,41 +354,74 @@ const Goals = () => {
           <DialogHeader>
             <DialogTitle>Add Funds to Goal</DialogTitle>
             <DialogDescription>
-              Enter the amount you want to add to your savings goal.
+              Select the account and amount you want to add to your savings goal.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <FormLabel>Amount (₹)</FormLabel>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={fundAmount || ""}
-                onChange={(e) => setFundAmount(Number(e.target.value))}
-                className="col-span-3"
+          <Form {...fundForm}>
+            <form onSubmit={fundForm.handleSubmit(handleAddFunds)} className="space-y-4">
+              <FormField
+                control={fundForm.control}
+                name="accountId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Source Account</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {accounts.map(account => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name} ({formatCurrency(account.balance)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsFundDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAddFunds}
-              className="bg-moneyxPrimary hover:bg-moneyxPrimary/90"
-              disabled={fundAmount <= 0}
-            >
-              Add Funds
-            </Button>
-          </DialogFooter>
+              
+              <FormField
+                control={fundForm.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsFundDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  className="bg-moneyxPrimary hover:bg-moneyxPrimary/90"
+                >
+                  Add Funds
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </Layout>

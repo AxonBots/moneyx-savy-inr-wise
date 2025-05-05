@@ -28,6 +28,8 @@ export type Transaction = {
   type: TransactionType;
   isRecurring?: boolean;
   tags?: string[];
+  toAccountId?: string; // For transfer transactions
+  fee?: number; // For transfer transactions
 };
 
 export type Category = {

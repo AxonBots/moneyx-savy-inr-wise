@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import {
   Account,
@@ -12,6 +11,7 @@ import {
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "./AuthContext";
+import { toast } from "@/components/ui/sonner";
 
 interface DataContextType {
   accounts: Account[];
@@ -34,10 +34,15 @@ interface DataContextType {
   addBill: (bill: Omit<Bill, "id">) => Promise<boolean>;
   updateBill: (id: string, bill: Partial<Bill>) => Promise<boolean>;
   deleteBill: (id: string) => Promise<boolean>;
+  addCategory: (category: Category) => Promise<boolean>;
+  updateCategory: (id: string, category: Partial<Category>) => Promise<boolean>;
+  deleteCategory: (id: string) => Promise<boolean>;
   updatePreferences: (newPreferences: Partial<UserPreferences>) => Promise<boolean>;
   markNotificationAsRead: (id: string) => Promise<boolean>;
   calculateTotalBalance: () => number;
   calculateNetIncome: () => number;
+  transferBetweenAccounts: (fromAccountId: string, toAccountId: string, amount: number, fee?: number, description?: string) => Promise<boolean>;
+  fundSavingsGoal: (goalId: string, accountId: string, amount: number) => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -55,6 +60,7 @@ const mockCategories: Category[] = [
   { id: "cat-9", name: "Gifts", type: "expense", color: "#9333ea" },
   { id: "cat-10", name: "Salary", type: "income", color: "#22c55e" },
   { id: "cat-11", name: "Investments", type: "income", color: "#3b82f6" },
+  { id: "cat-12", name: "Transfer", type: "expense", color: "#64748b" },
 ];
 
 const mockAccounts: Account[] = [
@@ -254,7 +260,7 @@ const defaultPreferences: UserPreferences = {
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const { toast: hookToast } = useToast();
 
   const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
@@ -292,8 +298,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         };
         setAccounts([...accounts, newAccount]);
         
-        toast({
-          title: "Account added",
+        toast.success("Account added", {
           description: `${newAccount.name} has been added successfully`,
         });
         
@@ -303,10 +308,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Add account error:", error);
       
-      toast({
-        title: "Failed to add account",
+      toast.error("Failed to add account", {
         description: "An error occurred while adding the account",
-        variant: "destructive",
       });
       
       return false;
@@ -321,8 +324,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updatedAccounts[index] = { ...updatedAccounts[index], ...account };
         setAccounts(updatedAccounts);
         
-        toast({
-          title: "Account updated",
+        toast.success("Account updated", {
           description: `${updatedAccounts[index].name} has been updated`,
         });
         
@@ -332,10 +334,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Update account error:", error);
       
-      toast({
-        title: "Failed to update account",
+      toast.error("Failed to update account", {
         description: "An error occurred while updating the account",
-        variant: "destructive",
       });
       
       return false;
@@ -346,10 +346,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     try {
       const accountToDelete = accounts.find(a => a.id === id);
       if (accountToDelete) {
+        // Check if there are transactions linked to this account
+        const hasTransactions = transactions.some(t => t.accountId === id);
+        
+        if (hasTransactions) {
+          toast.error("Cannot delete account", {
+            description: "This account has transactions linked to it. Delete the transactions first or move them to another account.",
+          });
+          return false;
+        }
+        
         setAccounts(accounts.filter((a) => a.id !== id));
         
-        toast({
-          title: "Account deleted",
+        toast.success("Account deleted", {
           description: `${accountToDelete.name} has been removed`,
         });
         
@@ -359,10 +368,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Delete account error:", error);
       
-      toast({
-        title: "Failed to delete account",
+      toast.error("Failed to delete account", {
         description: "An error occurred while deleting the account",
-        variant: "destructive",
       });
       
       return false;
@@ -381,7 +388,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       // Update account balance
       if (transaction.type === "expense") {
         updateAccount(transaction.accountId, {
-          balance: accounts.find((a) => a.id === transaction.accountId)!.balance - transaction.amount,
+          balance: accounts.find((a) => a.id === transaction.accountId)!.balance - Math.abs(transaction.amount),
         });
       } else if (transaction.type === "income") {
         updateAccount(transaction.accountId, {
@@ -389,8 +396,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      toast({
-        title: "Transaction added",
+      toast.success("Transaction added", {
         description: "Transaction has been recorded successfully",
       });
       
@@ -398,10 +404,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Add transaction error:", error);
       
-      toast({
-        title: "Failed to add transaction",
+      toast.error("Failed to add transaction", {
         description: "An error occurred while adding the transaction",
-        variant: "destructive",
       });
       
       return false;
@@ -416,8 +420,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updatedTransactions[index] = { ...updatedTransactions[index], ...transaction };
         setTransactions(updatedTransactions);
         
-        toast({
-          title: "Transaction updated",
+        toast.success("Transaction updated", {
           description: "Transaction has been updated successfully",
         });
         
@@ -427,10 +430,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Update transaction error:", error);
       
-      toast({
-        title: "Failed to update transaction",
+      toast.error("Failed to update transaction", {
         description: "An error occurred while updating the transaction",
-        variant: "destructive",
       });
       
       return false;
@@ -439,21 +440,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteTransaction = async (id: string): Promise<boolean> => {
     try {
-      setTransactions(transactions.filter((t) => t.id !== id));
-      
-      toast({
-        title: "Transaction deleted",
-        description: "Transaction has been removed successfully",
-      });
-      
-      return true;
+      const transactionToDelete = transactions.find(t => t.id === id);
+      if (transactionToDelete) {
+        // Update account balance to reverse transaction effect
+        if (transactionToDelete.type === "expense") {
+          updateAccount(transactionToDelete.accountId, {
+            balance: accounts.find((a) => a.id === transactionToDelete.accountId)!.balance + Math.abs(transactionToDelete.amount),
+          });
+        } else if (transactionToDelete.type === "income") {
+          updateAccount(transactionToDelete.accountId, {
+            balance: accounts.find((a) => a.id === transactionToDelete.accountId)!.balance - transactionToDelete.amount,
+          });
+        }
+        
+        setTransactions(transactions.filter((t) => t.id !== id));
+        
+        toast.success("Transaction deleted", {
+          description: "Transaction has been removed successfully",
+        });
+        
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error("Delete transaction error:", error);
       
-      toast({
-        title: "Failed to delete transaction",
+      toast.error("Failed to delete transaction", {
         description: "An error occurred while deleting the transaction",
-        variant: "destructive",
       });
       
       return false;
@@ -469,8 +482,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       
       setSavingsGoals([...savingsGoals, newGoal]);
       
-      toast({
-        title: "Savings goal added",
+      toast.success("Savings goal added", {
         description: `${newGoal.name} goal has been created successfully`,
       });
       
@@ -478,10 +490,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Add savings goal error:", error);
       
-      toast({
-        title: "Failed to add savings goal",
+      toast.error("Failed to add savings goal", {
         description: "An error occurred while adding the savings goal",
-        variant: "destructive",
       });
       
       return false;
@@ -496,8 +506,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updatedGoals[index] = { ...updatedGoals[index], ...goal };
         setSavingsGoals(updatedGoals);
         
-        toast({
-          title: "Savings goal updated",
+        toast.success("Savings goal updated", {
           description: `${updatedGoals[index].name} has been updated`,
         });
         
@@ -507,10 +516,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Update savings goal error:", error);
       
-      toast({
-        title: "Failed to update savings goal",
+      toast.error("Failed to update savings goal", {
         description: "An error occurred while updating the savings goal",
-        variant: "destructive",
       });
       
       return false;
@@ -523,8 +530,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (goalToDelete) {
         setSavingsGoals(savingsGoals.filter((g) => g.id !== id));
         
-        toast({
-          title: "Savings goal deleted",
+        toast.success("Savings goal deleted", {
           description: `${goalToDelete.name} has been removed`,
         });
         
@@ -534,10 +540,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Delete savings goal error:", error);
       
-      toast({
-        title: "Failed to delete savings goal",
+      toast.error("Failed to delete savings goal", {
         description: "An error occurred while deleting the savings goal",
-        variant: "destructive",
       });
       
       return false;
@@ -553,8 +557,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       
       setBills([...bills, newBill]);
       
-      toast({
-        title: "Bill added",
+      toast.success("Bill added", {
         description: `${newBill.name} has been added to your bills`,
       });
       
@@ -562,10 +565,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Add bill error:", error);
       
-      toast({
-        title: "Failed to add bill",
+      toast.error("Failed to add bill", {
         description: "An error occurred while adding the bill",
-        variant: "destructive",
       });
       
       return false;
@@ -580,8 +581,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updatedBills[index] = { ...updatedBills[index], ...bill };
         setBills(updatedBills);
         
-        toast({
-          title: "Bill updated",
+        toast.success("Bill updated", {
           description: `${updatedBills[index].name} has been updated`,
         });
         
@@ -591,10 +591,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Update bill error:", error);
       
-      toast({
-        title: "Failed to update bill",
+      toast.error("Failed to update bill", {
         description: "An error occurred while updating the bill",
-        variant: "destructive",
       });
       
       return false;
@@ -607,8 +605,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (billToDelete) {
         setBills(bills.filter((b) => b.id !== id));
         
-        toast({
-          title: "Bill deleted",
+        toast.success("Bill deleted", {
           description: `${billToDelete.name} has been removed from your bills`,
         });
         
@@ -618,10 +615,99 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Delete bill error:", error);
       
-      toast({
-        title: "Failed to delete bill",
+      toast.error("Failed to delete bill", {
         description: "An error occurred while deleting the bill",
-        variant: "destructive",
+      });
+      
+      return false;
+    }
+  };
+
+  const addCategory = async (category: Category): Promise<boolean> => {
+    try {
+      setCategories([...categories, category]);
+      
+      toast.success("Category added", {
+        description: `${category.name} category has been added successfully`,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Add category error:", error);
+      
+      toast.error("Failed to add category", {
+        description: "An error occurred while adding the category",
+      });
+      
+      return false;
+    }
+  };
+
+  const updateCategory = async (id: string, category: Partial<Category>): Promise<boolean> => {
+    try {
+      const index = categories.findIndex((c) => c.id === id);
+      if (index >= 0) {
+        const updatedCategories = [...categories];
+        updatedCategories[index] = { ...updatedCategories[index], ...category };
+        setCategories(updatedCategories);
+        
+        // Also update any transactions using this category
+        const updatedTransactions = transactions.map(transaction => {
+          if (transaction.category.id === id) {
+            return {
+              ...transaction,
+              category: updatedCategories[index]
+            };
+          }
+          return transaction;
+        });
+        setTransactions(updatedTransactions);
+        
+        toast.success("Category updated", {
+          description: `${updatedCategories[index].name} has been updated`,
+        });
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Update category error:", error);
+      
+      toast.error("Failed to update category", {
+        description: "An error occurred while updating the category",
+      });
+      
+      return false;
+    }
+  };
+
+  const deleteCategory = async (id: string): Promise<boolean> => {
+    try {
+      // Check if category is being used in transactions
+      const categoryInUse = transactions.some(t => t.category.id === id);
+      if (categoryInUse) {
+        toast.error("Cannot delete category", {
+          description: "This category is being used by transactions. Please reassign those transactions first.",
+        });
+        return false;
+      }
+      
+      const categoryToDelete = categories.find(c => c.id === id);
+      if (categoryToDelete) {
+        setCategories(categories.filter((c) => c.id !== id));
+        
+        toast.success("Category deleted", {
+          description: `${categoryToDelete.name} has been removed`,
+        });
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Delete category error:", error);
+      
+      toast.error("Failed to delete category", {
+        description: "An error occurred while deleting the category",
       });
       
       return false;
@@ -633,8 +719,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const updatedPreferences = { ...preferences, ...newPreferences };
       setPreferences(updatedPreferences);
       
-      toast({
-        title: "Preferences updated",
+      toast.success("Preferences updated", {
         description: "Your preferences have been updated successfully",
       });
       
@@ -642,10 +727,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Update preferences error:", error);
       
-      toast({
-        title: "Failed to update preferences",
+      toast.error("Failed to update preferences", {
         description: "An error occurred while updating your preferences",
-        variant: "destructive",
       });
       
       return false;
@@ -692,6 +775,137 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return income - expenses;
   };
 
+  // Function to transfer between accounts
+  const transferBetweenAccounts = async (
+    fromAccountId: string, 
+    toAccountId: string, 
+    amount: number, 
+    fee: number = 0, 
+    description: string = "Transfer between accounts"
+  ): Promise<boolean> => {
+    try {
+      const fromAccount = accounts.find(a => a.id === fromAccountId);
+      const toAccount = accounts.find(a => a.id === toAccountId);
+      
+      if (!fromAccount || !toAccount) {
+        toast.error("Transfer failed", {
+          description: "One or both accounts not found",
+        });
+        return false;
+      }
+      
+      if (fromAccount.balance < amount + fee) {
+        toast.error("Transfer failed", {
+          description: "Insufficient funds in the source account",
+        });
+        return false;
+      }
+      
+      // Create transaction for the transfer out
+      await addTransaction({
+        date: new Date(),
+        amount: -(amount + fee),
+        description: `Transfer to ${toAccount.name}${fee > 0 ? ` (includes ${formatCurrency(fee)} fee)` : ''}`,
+        category: categories.find(c => c.id === "cat-12")!, // Transfer category
+        accountId: fromAccountId,
+        type: "transfer",
+      });
+      
+      // Create transaction for the transfer in
+      await addTransaction({
+        date: new Date(),
+        amount: amount,
+        description: `Transfer from ${fromAccount.name}`,
+        category: categories.find(c => c.id === "cat-12")!, // Transfer category
+        accountId: toAccountId,
+        type: "transfer",
+      });
+      
+      // Update account balances
+      await updateAccount(fromAccountId, {
+        balance: fromAccount.balance - amount - fee,
+      });
+      
+      await updateAccount(toAccountId, {
+        balance: toAccount.balance + amount,
+      });
+      
+      toast.success("Transfer completed", {
+        description: `Successfully transferred ${formatCurrency(amount)} from ${fromAccount.name} to ${toAccount.name}`,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Transfer error:", error);
+      
+      toast.error("Transfer failed", {
+        description: "An error occurred while processing the transfer",
+      });
+      
+      return false;
+    }
+  };
+
+  // Function to fund a savings goal from an account
+  const fundSavingsGoal = async (
+    goalId: string, 
+    accountId: string, 
+    amount: number
+  ): Promise<boolean> => {
+    try {
+      const goal = savingsGoals.find(g => g.id === goalId);
+      const account = accounts.find(a => a.id === accountId);
+      
+      if (!goal || !account) {
+        toast.error("Funding failed", {
+          description: "Goal or account not found",
+        });
+        return false;
+      }
+      
+      if (account.balance < amount) {
+        toast.error("Funding failed", {
+          description: "Insufficient funds in the selected account",
+        });
+        return false;
+      }
+      
+      // Create transaction for the funding
+      await addTransaction({
+        date: new Date(),
+        amount: -amount,
+        description: `Contribution to ${goal.name} goal`,
+        category: categories.find(c => c.name === "Savings" || c.id === "cat-6") || categories[0],
+        accountId: accountId,
+        type: "expense",
+      });
+      
+      // Update account balance
+      await updateAccount(accountId, {
+        balance: account.balance - amount,
+      });
+      
+      // Update goal progress
+      await updateSavingsGoal(goalId, {
+        currentAmount: goal.currentAmount + amount,
+      });
+      
+      toast.success("Goal funded", {
+        description: `Added ${formatCurrency(amount)} to your ${goal.name} goal`,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Fund goal error:", error);
+      
+      toast.error("Funding failed", {
+        description: "An error occurred while funding the goal",
+      });
+      
+      return false;
+    }
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -715,10 +929,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addBill,
         updateBill,
         deleteBill,
+        addCategory,
+        updateCategory,
+        deleteCategory,
         updatePreferences,
         markNotificationAsRead,
         calculateTotalBalance,
         calculateNetIncome,
+        transferBetweenAccounts,
+        fundSavingsGoal,
       }}
     >
       {children}
