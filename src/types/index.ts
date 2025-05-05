@@ -40,14 +40,18 @@ export type Category = {
   icon?: string;
 };
 
+export type RecurrenceType = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannually' | 'annually';
+
 export type Bill = {
   id: string;
   name: string;
   amount: number;
   dueDate: Date;
   isRecurring: boolean;
+  recurrenceType?: RecurrenceType;
   category?: Category;
   isPaid: boolean;
+  accountId?: string; // Account to pay from
 };
 
 export type SavingsGoal = {

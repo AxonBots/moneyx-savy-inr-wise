@@ -41,6 +41,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import ExportData from "@/components/transactions/ExportData";
 
 const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -53,6 +54,8 @@ const formSchema = z.object({
   }),
   categoryId: z.string().min(1, "Please select a category"),
   accountId: z.string().min(1, "Please select an account"),
+  toAccountId: z.string().optional(),
+  fee: z.coerce.number().min(0).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -63,6 +66,7 @@ const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [showExport, setShowExport] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -73,25 +77,62 @@ const Transactions = () => {
       type: "expense",
       categoryId: "",
       accountId: "",
+      toAccountId: "",
+      fee: 0,
     },
   });
+
+  const watchTransactionType = form.watch("type");
 
   const onSubmit = async (data: FormData) => {
     const category = categories.find((c) => c.id === data.categoryId);
     if (!category) return;
 
-    const success = await addTransaction({
-      date: data.date,
-      amount: data.type === "expense" ? -data.amount : data.amount,
-      description: data.description,
-      category,
-      accountId: data.accountId,
-      type: data.type,
-    });
+    // Handle transfer type separately
+    if (data.type === "transfer" && data.toAccountId) {
+      const success = await addTransaction({
+        date: data.date,
+        amount: -data.amount - (data.fee || 0),
+        description: `Transfer to ${accounts.find(a => a.id === data.toAccountId)?.name}`,
+        category,
+        accountId: data.accountId,
+        type: data.type,
+        toAccountId: data.toAccountId,
+        fee: data.fee || 0
+      });
 
-    if (success) {
-      form.reset();
-      setIsDialogOpen(false);
+      // Also add the receiving transaction
+      if (success) {
+        await addTransaction({
+          date: data.date,
+          amount: data.amount,
+          description: `Transfer from ${accounts.find(a => a.id === data.accountId)?.name}`,
+          category,
+          accountId: data.toAccountId,
+          type: data.type,
+          toAccountId: data.accountId,
+        });
+      }
+
+      if (success) {
+        form.reset();
+        setIsDialogOpen(false);
+      }
+    } else {
+      // Regular income or expense
+      const success = await addTransaction({
+        date: data.date,
+        amount: data.type === "expense" ? -data.amount : data.amount,
+        description: data.description,
+        category,
+        accountId: data.accountId,
+        type: data.type,
+      });
+
+      if (success) {
+        form.reset();
+        setIsDialogOpen(false);
+      }
     }
   };
 
@@ -123,102 +164,32 @@ const Transactions = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <h1 className="text-2xl font-bold">Transactions</h1>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-moneyxPrimary hover:bg-moneyxPrimary/90">
-                <Plus className="mr-2 h-4 w-4" /> Add Transaction
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Add New Transaction</DialogTitle>
-                <DialogDescription>
-                  Enter the details of your transaction
-                </DialogDescription>
-              </DialogHeader>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline"
+              onClick={() => setShowExport(!showExport)}
+            >
+              {showExport ? "Hide Export" : "Export Data"}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-moneyxPrimary hover:bg-moneyxPrimary/90">
+                  <Plus className="mr-2 h-4 w-4" /> Add Transaction
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Transaction</DialogTitle>
+                  <DialogDescription>
+                    Enter the details of your transaction
+                  </DialogDescription>
+                </DialogHeader>
 
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-4"
-                >
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Groceries, Rent, etc." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Amount (₹)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="0.00" 
-                              type="number" 
-                              step="0.01"
-                              min="0" 
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="date"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Date</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                    "pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                initialFocus
-                                className="p-3 pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-4"
+                  >
                     <FormField
                       control={form.control}
                       name="type"
@@ -241,85 +212,225 @@ const Transactions = () => {
                         </FormItem>
                       )}
                     />
-
-                    <FormField
-                      control={form.control}
-                      name="categoryId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Category</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    
+                    {watchTransactionType !== "transfer" && (
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select category" />
-                              </SelectTrigger>
+                              <Input placeholder="Groceries, Rent, etc." {...field} />
                             </FormControl>
-                            <SelectContent>
-                              {categories
-                                .filter(
-                                  (cat) => cat.type === form.watch("type") || form.watch("type") === "transfer"
-                                )
-                                .map((category) => (
-                                  <SelectItem
-                                    key={category.id}
-                                    value={category.id}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Amount (₹)</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="0.00" 
+                                type="number" 
+                                step="0.01"
+                                min="0" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel>Date</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                      "pl-3 text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
                                   >
-                                    {category.name}
+                                    {field.value ? (
+                                      format(field.value, "PPP")
+                                    ) : (
+                                      <span>Pick a date</span>
+                                    )}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                  initialFocus
+                                  className={cn("p-3 pointer-events-auto")}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="categoryId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Category</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {categories
+                                  .filter(
+                                    (cat) => (watchTransactionType === "transfer" || cat.type === watchTransactionType)
+                                  )
+                                  .map((category) => (
+                                    <SelectItem
+                                      key={category.id}
+                                      value={category.id}
+                                    >
+                                      {category.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="accountId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {watchTransactionType === "transfer" ? "From Account" : "Account"}
+                            </FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select account" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {accounts.map((account) => (
+                                  <SelectItem key={account.id} value={account.id}>
+                                    {account.name}
                                   </SelectItem>
                                 ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                  <FormField
-                    control={form.control}
-                    name="accountId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Account</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select account" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {accounts.map((account) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
+                    {watchTransactionType === "transfer" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="toAccountId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>To Account</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select destination account" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {accounts
+                                    .filter(account => account.id !== form.watch("accountId"))
+                                    .map((account) => (
+                                      <SelectItem key={account.id} value={account.id}>
+                                        {account.name}
+                                      </SelectItem>
+                                    ))
+                                  }
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="fee"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Transfer Fee (optional)</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="0.00" 
+                                  type="number" 
+                                  step="0.01"
+                                  min="0" 
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
                     )}
-                  />
 
-                  <DialogFooter className="mt-6">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="submit"
-                      className="bg-moneyxPrimary hover:bg-moneyxPrimary/90"
-                    >
-                      Add Transaction
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                    <DialogFooter className="mt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit"
+                        className="bg-moneyxPrimary hover:bg-moneyxPrimary/90"
+                      >
+                        Add Transaction
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
+
+        {showExport && (
+          <div className="mb-6">
+            <ExportData />
+          </div>
+        )}
 
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-4 border-b">

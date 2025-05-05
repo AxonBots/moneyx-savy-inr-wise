@@ -1,73 +1,89 @@
-# Welcome to your Lovable project
 
-## Project info
+# MoneyX - Personal Finance Tracker
 
-**URL**: https://lovable.dev/projects/107ce485-79c7-4519-8b79-6ecb7928413b
+## Project Overview
 
-## How can I edit this code?
+MoneyX is a comprehensive personal finance management application that helps users track their expenses, income, bills, and savings goals. The application provides visualization tools, budgeting features, and insights to help users make informed financial decisions.
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **Dashboard**: Overview of financial status including account balances, recent transactions, and spending insights
+- **Accounts Management**: Add, edit, and delete financial accounts
+- **Transaction Tracking**: Record and categorize income and expenses
+- **Bills Management**: Track recurring and one-time bills with payment reminders
+- **Savings Goals**: Set and track progress toward financial goals
+- **Data Export**: Export transaction data as CSV or PDF with custom date filters
+- **Category Management**: Create and manage custom categories for income and expenses
+- **Budget Planning**: Create and track monthly budgets by category
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/107ce485-79c7-4519-8b79-6ecb7928413b) and start prompting.
+## Technology Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend**: React with TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Shadcn UI
+- **Form Handling**: React Hook Form with Zod validation
+- **State Management**: React Context API
+- **Data Visualization**: Recharts
+- **Icons**: Lucide React
+- **Database**: MySQL (production)
 
-**Use your preferred IDE**
+## Database Setup
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+The application is designed to use MySQL as the database backend. Currently, the application uses mock data, but it's ready to be connected to a MySQL database.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Database Configuration
 
-Follow these steps:
+To configure the database connection, you'll need to set the following environment variables:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+DB_HOST=your_database_host
+DB_PORT=your_database_port
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+DB_NAME=your_database_name
 ```
 
-**Edit a file directly in GitHub**
+These values can be set in a `.env` file in the root directory of your project.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Database Schema
 
-**Use GitHub Codespaces**
+The database schema includes tables for:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Users
+- Accounts
+- Categories
+- Transactions
+- Bills
+- Savings Goals
+- Budgets
+- Notifications
+- User Preferences
 
-## What technologies are used for this project?
+The full SQL schema is provided in `src/config/database.ts`.
 
-This project is built with:
+## Getting Started
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. Clone the repository
+2. Install dependencies:
+   ```
+   npm install
+   ```
+3. Create a `.env` file with your database configuration
+4. Run the development server:
+   ```
+   npm run dev
+   ```
 
-## How can I deploy this project?
+## Future Improvements
 
-Simply open [Lovable](https://lovable.dev/projects/107ce485-79c7-4519-8b79-6ecb7928413b) and click on Share -> Publish.
+- Authentication system
+- Multi-currency support
+- Receipt image scanning
+- Financial reports
+- Mobile application
+- API integration with banks
+- Advanced analytics and insights
 
-## Can I connect a custom domain to my Lovable project?
+## Contributing
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Contributions are welcome! Please feel free to submit a Pull Request.

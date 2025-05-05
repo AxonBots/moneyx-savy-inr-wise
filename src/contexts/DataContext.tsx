@@ -12,6 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "./AuthContext";
 import { toast } from "@/components/ui/sonner";
+import { formatCurrency } from "@/lib/utils";
 
 interface DataContextType {
   accounts: Account[];
