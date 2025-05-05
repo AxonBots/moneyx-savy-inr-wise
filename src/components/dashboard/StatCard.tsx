@@ -13,6 +13,15 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, trend, className }) => {
+  // Format the trend value for display
+  const formatTrendDisplay = (trendValue: string) => {
+    if (trendValue === "N/A") {
+      return trend?.positive ? "New income" : "New expense";
+    }
+    
+    return `${trend?.positive ? "+" : ""}${trendValue} from last month`;
+  };
+  
   return (
     <Card className={cn("border shadow-sm", className)}>
       <CardContent className="p-6">
@@ -23,7 +32,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, trend, className }) =
             "text-xs font-medium",
             trend.positive ? "text-green-500" : "text-red-500"
           )}>
-            {trend.positive ? "+" : ""}{trend.value}
+            {formatTrendDisplay(trend.value)}
           </p>
         )}
       </CardContent>

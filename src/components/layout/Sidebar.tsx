@@ -7,7 +7,8 @@ import {
   Wallet,
   Goal,
   Settings,
-  IndianRupee
+  IndianRupee,
+  CalendarClock
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -29,6 +30,11 @@ const Sidebar = () => {
       name: "Accounts",
       path: "/accounts",
       icon: <Wallet className="h-5 w-5" />,
+    },
+    {
+      name: "Bills",
+      path: "/bills",
+      icon: <CalendarClock className="h-5 w-5" />,
     },
     {
       name: "Goals",

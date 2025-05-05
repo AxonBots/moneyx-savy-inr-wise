@@ -1,11 +1,10 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useData } from "@/contexts/DataContext";
 import { formatCurrency } from "@/lib/utils";
 import Layout from "@/components/layout/Layout";
 import StatCard from "@/components/dashboard/StatCard";
 import TransactionList from "@/components/dashboard/TransactionList";
-import PieChart from "@/components/dashboard/PieChart";
 import InsightCard from "@/components/dashboard/InsightCard";
 import BillsList from "@/components/dashboard/BillsList";
 import AccountsList from "@/components/dashboard/AccountsList";
@@ -25,15 +24,29 @@ const Dashboard = () => {
     calculateNetIncome
   } = useData();
 
+  // State for previous month data
+  const [previousMonthIncome, setPreviousMonthIncome] = useState(0);
+  const [previousMonthExpenses, setPreviousMonthExpenses] = useState(0);
+  const [previousMonthNet, setPreviousMonthNet] = useState(0);
+
   // Calculate monthly income, expenses, and net income
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
+  // Get previous month and year
+  const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
   const monthTransactions = transactions.filter(
     (t) => t.date.getMonth() === currentMonth && t.date.getFullYear() === currentYear
   );
 
+  const prevMonthTransactions = transactions.filter(
+    (t) => t.date.getMonth() === prevMonth && t.date.getFullYear() === prevYear
+  );
+
+  // Calculate current month figures
   const monthlyIncome = monthTransactions
     .filter((t) => t.type === "income")
     .reduce((sum, t) => sum + t.amount, 0);
@@ -43,6 +56,31 @@ const Dashboard = () => {
     .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
   const netIncome = monthlyIncome - monthlyExpenses;
+
+  // Calculate previous month figures
+  useEffect(() => {
+    const prevIncome = prevMonthTransactions
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const prevExpenses = prevMonthTransactions
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    setPreviousMonthIncome(prevIncome);
+    setPreviousMonthExpenses(prevExpenses);
+    setPreviousMonthNet(prevIncome - prevExpenses);
+  }, [prevMonthTransactions]);
+
+  // Calculate percentage changes
+  const calculatePercentageChange = (current: number, previous: number) => {
+    if (previous === 0) {
+      return current === 0 ? "0%" : current > 0 ? "N/A" : "N/A";
+    }
+    
+    const percentChange = ((current - previous) / previous) * 100;
+    return `${percentChange.toFixed(1)}%`;
+  };
 
   // Calculate spending by category
   const expensesByCategory = monthTransactions
@@ -63,7 +101,7 @@ const Dashboard = () => {
         name: category ? category.name : "Other",
         value: amount,
         color: category ? category.color : "#CBD5E1",
-        percentage: ((amount / monthlyExpenses) * 100).toFixed(1) + "%",
+        percentage: monthlyExpenses > 0 ? ((amount / monthlyExpenses) * 100).toFixed(1) + "%" : "0%",
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -74,10 +112,8 @@ const Dashboard = () => {
   );
 
   // Filter alerts and insights
-  const alerts = notifications.filter(
-    (n) => n.type === "alert" || n.type === "bill"
-  );
   const insights = notifications.filter((n) => n.type === "insight");
+  const alerts = notifications.filter((n) => n.type === "bill" || n.type === "balance" || n.type === "transaction");
 
   return (
     <Layout>
@@ -89,17 +125,26 @@ const Dashboard = () => {
           <StatCard
             title="Monthly Income"
             value={formatCurrency(monthlyIncome)}
-            trend={{ value: "Infinity% from last month", positive: true }}
+            trend={{ 
+              value: calculatePercentageChange(monthlyIncome, previousMonthIncome), 
+              positive: monthlyIncome >= previousMonthIncome 
+            }}
           />
           <StatCard
             title="Monthly Expenses"
             value={formatCurrency(monthlyExpenses)}
-            trend={{ value: "318.5% from last month", positive: false }}
+            trend={{ 
+              value: calculatePercentageChange(monthlyExpenses, previousMonthExpenses), 
+              positive: monthlyExpenses <= previousMonthExpenses 
+            }}
           />
           <StatCard
             title="Net Income"
             value={formatCurrency(netIncome)}
-            trend={{ value: "892.2% from last month", positive: true }}
+            trend={{ 
+              value: calculatePercentageChange(netIncome, previousMonthNet), 
+              positive: netIncome >= previousMonthNet 
+            }}
           />
         </div>
 
