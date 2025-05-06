@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +26,7 @@ import {
   TabsTrigger 
 } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { toast } from "sonner";
 
 type DateRange = {
   from: Date;
@@ -128,7 +128,8 @@ const ExportData = () => {
     link.click();
     document.body.removeChild(link);
     
-    toast.success('CSV Export Successful', {
+    toast({
+      title: "CSV Export Successful",
       description: `${filteredTransactions.length} transactions exported`,
     });
   };
@@ -139,7 +140,8 @@ const ExportData = () => {
     // This is a simplified example that alerts the user
     alert(`PDF export would include ${filteredTransactions.length} transactions from ${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}.`);
     
-    toast.success('PDF Export Successful', {
+    toast({
+      title: "PDF Export Successful",
       description: `${filteredTransactions.length} transactions exported`,
     });
     
